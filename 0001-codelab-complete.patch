@@ -1,0 +1,352 @@
+From f4becaa4270c5a25ec4072c376e35f823ff33e7a Mon Sep 17 00:00:00 2001
+From: sineausr931 <sineausr931@black.pearl>
+Date: Fri, 5 Mar 2021 09:37:42 -0800
+Subject: [PATCH] codelab complete
+
+---
+ GuessTheWord-Starter/app/build.gradle         |  3 +
+ .../guesstheword/screens/game/GameFragment.kt | 91 +++++++------------
+ .../screens/game/GameViewModel.kt             | 76 ++++++++++++++++
+ .../screens/score/ScoreFragment.kt            |  8 ++
+ .../screens/score/ScoreViewModel.kt           | 12 +++
+ .../screens/score/ScoreViewModelFactory.kt    | 13 +++
+ .../main/res/navigation/main_navigation.xml   |  3 +-
+ 7 files changed, 147 insertions(+), 59 deletions(-)
+ create mode 100644 GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/game/GameViewModel.kt
+ create mode 100644 GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreViewModel.kt
+ create mode 100644 GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreViewModelFactory.kt
+
+diff --git a/GuessTheWord-Starter/app/build.gradle b/GuessTheWord-Starter/app/build.gradle
+index b1848a1..710cec9 100755
+--- a/GuessTheWord-Starter/app/build.gradle
++++ b/GuessTheWord-Starter/app/build.gradle
+@@ -56,4 +56,7 @@ dependencies {
+     // Navigation
+     implementation "androidx.navigation:navigation-fragment-ktx:2.3.0"
+     implementation "androidx.navigation:navigation-ui-ktx:2.3.0"
++
++    //ViewModel
++    implementation 'androidx.lifecycle:lifecycle-viewmodel-ktx:2.2.0'
+ }
+diff --git a/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/game/GameFragment.kt b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/game/GameFragment.kt
+index 57d8b72..6a2b656 100755
+--- a/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/game/GameFragment.kt
++++ b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/game/GameFragment.kt
+@@ -17,33 +17,36 @@
+ package com.example.android.guesstheword.screens.game
+ 
+ import android.os.Bundle
++import android.util.Log
+ import android.view.LayoutInflater
+ import android.view.View
+ import android.view.ViewGroup
++import android.widget.Toast
+ import androidx.databinding.DataBindingUtil
+ import androidx.fragment.app.Fragment
++import androidx.lifecycle.ViewModelProvider
++import androidx.navigation.fragment.NavHostFragment
+ import com.example.android.guesstheword.R
+ import com.example.android.guesstheword.databinding.GameFragmentBinding
++import com.example.android.guesstheword.screens.score.ScoreFragment
++import com.example.android.guesstheword.screens.score.ScoreFragmentDirections
++import com.example.android.guesstheword.screens.title.TitleFragmentDirections
+ 
+ /**
+  * Fragment where the game is played
+  */
+ class GameFragment : Fragment() {
+ 
+-    // The current word
+-    private var word = ""
+-
+-    // The current score
+-    private var score = 0
+-
+-    // The list of words - the front of the list is the next word to guess
+-    private lateinit var wordList: MutableList<String>
++    private lateinit var viewModel: GameViewModel
+ 
+     private lateinit var binding: GameFragmentBinding
+ 
+     override fun onCreateView(inflater: LayoutInflater, container: ViewGroup?,
+                               savedInstanceState: Bundle?): View? {
+ 
++        Log.i("GameFragment", "Called ViewModelProvider.get")
++        viewModel = ViewModelProvider(this).get(GameViewModel::class.java)
++
+         // Inflate view and obtain an instance of the binding class
+         binding = DataBindingUtil.inflate(
+                 inflater,
+@@ -52,79 +55,51 @@ class GameFragment : Fragment() {
+                 false
+         )
+ 
+-        resetList()
+-        nextWord()
+-
+         binding.correctButton.setOnClickListener { onCorrect() }
+         binding.skipButton.setOnClickListener { onSkip() }
++        binding.endGameButton.setOnClickListener { onEndGame() }
+         updateScoreText()
+         updateWordText()
+         return binding.root
+ 
+     }
+ 
+-    /**
+-     * Resets the list of words and randomizes the order
+-     */
+-    private fun resetList() {
+-        wordList = mutableListOf(
+-                "queen",
+-                "hospital",
+-                "basketball",
+-                "cat",
+-                "change",
+-                "snail",
+-                "soup",
+-                "calendar",
+-                "sad",
+-                "desk",
+-                "guitar",
+-                "home",
+-                "railway",
+-                "zebra",
+-                "jelly",
+-                "car",
+-                "crow",
+-                "trade",
+-                "bag",
+-                "roll",
+-                "bubble"
+-        )
+-        wordList.shuffle()
+-    }
+-
+     /** Methods for buttons presses **/
+ 
+     private fun onSkip() {
+-        score--
+-        nextWord()
++        viewModel.onSkip()
++        updateWordText()
++        updateScoreText()
+     }
+ 
+     private fun onCorrect() {
+-        score++
+-        nextWord()
+-    }
+-
+-    /**
+-     * Moves to the next word in the list
+-     */
+-    private fun nextWord() {
+-        if (!wordList.isEmpty()) {
+-            //Select and remove a word from the list
+-            word = wordList.removeAt(0)
+-        }
++        viewModel.onCorrect()
+         updateWordText()
+         updateScoreText()
+     }
+ 
+-
+     /** Methods for updating the UI **/
+ 
+     private fun updateWordText() {
+-        binding.wordText.text = word
++        binding.wordText.text = viewModel.word
+     }
+ 
+     private fun updateScoreText() {
+-        binding.scoreText.text = score.toString()
++        binding.scoreText.text = viewModel.score.toString()
++    }
++
++    private fun onEndGame() {
++        gameFinished()
++    }
++
++    /**
++     * Called when the game is finished
++     */
++    private fun gameFinished() {
++        Toast.makeText(activity, "Game has just finished", Toast.LENGTH_SHORT).show()
++        val action = GameFragmentDirections.actionGameToScore()
++//        var action = TitleFragmentDirections.actionTitleToGame()
++        action.score = viewModel.score
++        NavHostFragment.findNavController(this).navigate(action)
+     }
+ }
+diff --git a/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/game/GameViewModel.kt b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/game/GameViewModel.kt
+new file mode 100644
+index 0000000..b0af85f
+--- /dev/null
++++ b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/game/GameViewModel.kt
+@@ -0,0 +1,76 @@
++package com.example.android.guesstheword.screens.game
++
++import android.util.Log
++import androidx.lifecycle.ViewModel
++
++class GameViewModel : ViewModel() {
++    // The current word
++    var word = ""
++
++    // The current score
++    var score = 0
++
++    // The list of words - the front of the list is the next word to guess
++    private lateinit var wordList: MutableList<String>
++
++    /**
++     * Resets the list of words and randomizes the order
++     */
++    private fun resetList() {
++        wordList = mutableListOf(
++                "queen",
++                "hospital",
++                "basketball",
++                "cat",
++                "change",
++                "snail",
++                "soup",
++                "calendar",
++                "sad",
++                "desk",
++                "guitar",
++                "home",
++                "railway",
++                "zebra",
++                "jelly",
++                "car",
++                "crow",
++                "trade",
++                "bag",
++                "roll",
++                "bubble"
++        )
++        wordList.shuffle()
++    }
++
++    init {
++        resetList()
++        nextWord()
++        Log.i("GameViewModel", "GameViewModel created!")
++    }
++
++    /**
++     * Moves to the next word in the list
++     */
++    private fun nextWord() {
++        if (!wordList.isEmpty()) {
++            //Select and remove a word from the list
++            word = wordList.removeAt(0)
++        }
++    }
++
++    override fun onCleared() {
++        super.onCleared()
++        Log.i("GameViewModel", "GameViewModel destroyed!")
++    }
++
++    fun onSkip() {
++        score--
++        nextWord()
++    }
++
++    fun onCorrect() {
++        score++
++        nextWord()
++    }
++}
+\ No newline at end of file
+diff --git a/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreFragment.kt b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreFragment.kt
+index 4962b73..38ae2ea 100755
+--- a/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreFragment.kt
++++ b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreFragment.kt
+@@ -22,6 +22,7 @@ import android.view.View
+ import android.view.ViewGroup
+ import androidx.databinding.DataBindingUtil
+ import androidx.fragment.app.Fragment
++import androidx.lifecycle.ViewModelProvider
+ import androidx.navigation.fragment.navArgs
+ import com.example.android.guesstheword.R
+ import com.example.android.guesstheword.databinding.ScoreFragmentBinding
+@@ -30,6 +31,8 @@ import com.example.android.guesstheword.databinding.ScoreFragmentBinding
+  * Fragment where the final score is shown, after the game is over
+  */
+ class ScoreFragment : Fragment() {
++    private lateinit var viewModel: ScoreViewModel
++    private lateinit var viewModelFactory: ScoreViewModelFactory
+ 
+     override fun onCreateView(
+             inflater: LayoutInflater,
+@@ -45,6 +48,11 @@ class ScoreFragment : Fragment() {
+                 false
+         )
+ 
++        viewModelFactory = ScoreViewModelFactory(ScoreFragmentArgs.fromBundle(requireArguments()).score)
++        viewModel = ViewModelProvider(this, viewModelFactory)
++                .get(ScoreViewModel::class.java)
++        binding.scoreText.text = viewModel.score.toString()
++
+         return binding.root
+     }
+ }
+diff --git a/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreViewModel.kt b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreViewModel.kt
+new file mode 100644
+index 0000000..fe3bcde
+--- /dev/null
++++ b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreViewModel.kt
+@@ -0,0 +1,12 @@
++package com.example.android.guesstheword.screens.score
++
++import android.util.Log
++import androidx.lifecycle.ViewModel
++
++class ScoreViewModel(finalScore: Int) : ViewModel() {
++    // The final score
++    var score = finalScore
++    init {
++        Log.i("ScoreViewModel", "Final score is $finalScore")
++    }
++}
+\ No newline at end of file
+diff --git a/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreViewModelFactory.kt b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreViewModelFactory.kt
+new file mode 100644
+index 0000000..1698688
+--- /dev/null
++++ b/GuessTheWord-Starter/app/src/main/java/com/example/android/guesstheword/screens/score/ScoreViewModelFactory.kt
+@@ -0,0 +1,13 @@
++package com.example.android.guesstheword.screens.score
++
++import androidx.lifecycle.ViewModel
++import androidx.lifecycle.ViewModelProvider
++
++class ScoreViewModelFactory(private val finalScore: Int) : ViewModelProvider.Factory {
++    override fun <T : ViewModel?> create(modelClass: Class<T>): T {
++        if (modelClass.isAssignableFrom(ScoreViewModel::class.java)) {
++            return ScoreViewModel(finalScore) as T
++        }
++        throw IllegalArgumentException("Unknown ViewModel class")
++    }
++}
+diff --git a/GuessTheWord-Starter/app/src/main/res/navigation/main_navigation.xml b/GuessTheWord-Starter/app/src/main/res/navigation/main_navigation.xml
+index eb5f687..5f8f643 100755
+--- a/GuessTheWord-Starter/app/src/main/res/navigation/main_navigation.xml
++++ b/GuessTheWord-Starter/app/src/main/res/navigation/main_navigation.xml
+@@ -14,7 +14,8 @@
+   ~ limitations under the License.
+   -->
+ 
+-<navigation xmlns:android="http://schemas.android.com/apk/res/android"
++<navigation
++    xmlns:android="http://schemas.android.com/apk/res/android"
+     xmlns:app="http://schemas.android.com/apk/res-auto"
+     xmlns:tools="http://schemas.android.com/tools"
+     app:startDestination="@id/title_destination">
+-- 
+2.24.3 (Apple Git-128)
+
